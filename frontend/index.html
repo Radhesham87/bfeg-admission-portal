@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEET-UG Maharashtra 85% — Application Form</title>
+<meta name="description" content="Submit your NEET-UG Maharashtra 85% state quota admission details to Bright Future Education Group.">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div>
+      <h1>NEET-UG Maharashtra — 85% State Quota Application</h1>
+      <p>Bright Future Education Group · admission counselling</p>
+    </div>
+    <span class="spacer"></span>
+    <a class="panel-link" href="admin.html">Staff sign in</a>
+  </div>
+</header>
+
+<div class="shell" id="page">
+
+  <div class="note">
+    Fill every field exactly as printed on your NEET score card and certificates.
+    Fields marked <span style="color:#8c2020">*</span> are required.
+    After you submit you will get a reference number — save it.
+  </div>
+
+  <div id="formArea"><div class="empty">Loading the form…</div></div>
+
+  <div class="card" id="submitCard" style="display:none">
+    <div class="f" style="margin-bottom:14px">
+      <label>
+        <input type="checkbox" id="declare" style="width:auto;margin-right:6px">
+        I confirm the information above is true and I will produce original documents when asked.
+      </label>
+    </div>
+    <button class="btn-primary" id="submitBtn" onclick="submitForm()">Submit application</button>
+    <button class="btn-ghost" onclick="if(confirm('Clear everything you have typed?')) location.reload()">Clear form</button>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/form.js"></script>
+</body>
+</html>

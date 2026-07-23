@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------
+#  Netlify build settings
+#  The repo holds both panels (frontend/) and the API (backend/).
+#  Netlify only publishes frontend/ — backend/ goes to Cloud Run.
+# ---------------------------------------------------------------
+
+[build]
+  base    = "frontend"
+  publish = "."
+  command = "bash set-api-url.sh"
+
+# set-api-url.sh writes your Cloud Run address into assets/js/config.js
+# using the API_BASE environment variable you set in the Netlify UI:
+#   Site configuration → Environment variables → API_BASE
+#     = https://bfeg-api-xxxxxxx.a.run.app
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# ---------------------------------------------------------------
+#  Headers
+# ---------------------------------------------------------------
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# Keep the admin panel out of search results.
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Never let a stale config.js pin the site to an old API address.
+[[headers]]
+  for = "/assets/js/config.js"
+  [headers.values]
+    Cache-Control = "no-cache, max-age=0, must-revalidate"
+
+# ---------------------------------------------------------------
+#  Friendly URLs
+# ---------------------------------------------------------------
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/form"
+  to = "/index.html"
+  status = 200

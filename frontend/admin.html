@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — BFEG Applications</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div>
+      <h1>Admin Panel — Applications</h1>
+      <p>Bright Future Education Group</p>
+    </div>
+    <span class="spacer"></span>
+    <a class="panel-link" href="index.html">Open student form</a>
+    <button class="panel-link" id="signOutBtn" onclick="signOut()" style="display:none">Sign out</button>
+  </div>
+</header>
+
+<!-- ---------- LOGIN ---------- -->
+<div class="shell" id="loginView">
+  <div class="card login">
+    <h2>Staff sign in</h2>
+    <p>Only BFEG staff can view applications and download the Excel file.</p>
+    <div class="f">
+      <label for="u">Username</label>
+      <input id="u" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="f">
+      <label for="p">Password</label>
+      <input id="p" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ---------- DASHBOARD ---------- -->
+<div class="shell" id="adminView" style="display:none">
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search name, roll no, mobile, district…"
+           onkeydown="if(event.key==='Enter')loadList(1)">
+    <button class="btn-ghost" onclick="loadList(1)">Search</button>
+    <button class="btn-ghost" onclick="document.getElementById('q').value='';loadList(1)">Reset</button>
+    <button class="btn-accent" onclick="downloadAll()">Download Excel</button>
+    <span class="count" id="count">—</span>
+  </div>
+
+  <div class="scroll">
+    <table class="recs" id="recs">
+      <thead><tr>
+        <th>Reference</th><th>Name</th><th>NEET Roll</th><th>Mobile</th>
+        <th>District</th><th>Category</th><th>Quota</th><th>Submitted</th><th></th><th></th><th></th>
+      </tr></thead>
+      <tbody><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="toolbar" style="margin-top:14px">
+    <button class="btn-ghost" id="prev" onclick="loadList(PAGE-1)">Previous</button>
+    <button class="btn-ghost" id="next" onclick="loadList(PAGE+1)">Next</button>
+    <span class="count" id="pageInfo"></span>
+  </div>
+</div>
+
+<!-- ---------- DETAIL DIALOG ---------- -->
+<dialog id="detail">
+  <div class="dhead">
+    <h3 id="dTitle">Application</h3>
+    <span class="spacer" style="margin-left:auto"></span>
+  </div>
+  <div class="dbody" id="dBody"></div>
+  <div class="dfoot">
+    <button class="btn-primary" id="dPdf">Download filled form (PDF)</button>
+    <button class="btn-accent" id="dExcel">Download Excel</button>
+    <button class="btn-ghost" onclick="document.getElementById('detail').close()">Close</button>
+  </div>
+</dialog>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run BFEG Portal (local preview)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_local.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
