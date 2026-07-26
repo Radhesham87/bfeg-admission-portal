@@ -29,7 +29,8 @@ function fieldHtml(f) {
   } else if (f.t === "area") {
     ctrl = `<textarea id="${f.k}" data-key="${f.k}"></textarea>`;
   } else {
-    ctrl = `<input type="${f.t || "text"}" id="${f.k}" data-key="${f.k}">`;
+    const lim = (f.min ? ` min="${esc(f.min)}"` : "") + (f.max ? ` max="${esc(f.max)}"` : "");
+    ctrl = `<input type="${f.t || "text"}" id="${f.k}" data-key="${f.k}"${lim}>`;
   }
   return `<div class="${cls}"><label for="${f.k}">${esc(f.l)}${req}${hint}</label>${ctrl}</div>`;
 }

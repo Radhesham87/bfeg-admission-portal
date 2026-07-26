@@ -137,17 +137,86 @@ async function openDetail(id) {
       });
       html += `</table>`;
     });
-    html += `<h4>Required Documents</h4><table>`;
-    SCHEMA.documents.forEach(d => {
-      html += `<tr><td class="lab">${esc(d)}</td><td>${esc(rec.documents[d] || "—")}</td></tr>`;
-    });
-    html += `</table>`;
+    const bcDocs = SCHEMA.barcode_documents || [];
+    const mand = SCHEMA.mandatory_documents || [];
+    const opt = SCHEMA.optional_documents || [];
+    const mSt = SCHEMA.mandatory_status || ["Yes"];
+    const oSt = SCHEMA.optional_status || ["Yes", "No"];
+
+    const editRow = (d, n, statuses) => {
+      const v = rec.documents[d];
+      const status = (v && typeof v === "object") ? (v.status || "") : (v || "");
+      const barcode = (v && typeof v === "object") ? (v.barcode || "") : "";
+      const opts = statuses
+        .map(o => `<option${o === status ? " selected" : ""}>${esc(o)}</option>`).join("");
+      const bc = bcDocs.includes(d)
+        ? `<input type="text" data-edit-barcode="${esc(d)}" value="${esc(barcode)}" placeholder="Bar code no.">`
+        : `<span style="color:#9aa1ad">—</span>`;
+      return `<tr><td>${n}</td><td>${esc(d)}</td>
+        <td><select data-edit-doc="${esc(d)}">
+              <option value=""${status ? "" : " selected"}>—</option>${opts}
+            </select></td><td>${bc}</td></tr>`;
+    };
+
+    html += `<h4>Required Documents
+      <span style="font-family:system-ui;font-weight:400;font-size:.75rem;color:#6a7280">
+        — enter bar code numbers as documents are received, then Save</span></h4>`;
+
+    let n = 0;
+    html += `<div style="font-weight:600;color:#8c2020;margin:4px 0 6px">Mandatory documents</div>
+      <table><thead><tr>
+        <th style="width:34px">#</th><th>Document</th>
+        <th style="width:130px">Submitted</th><th style="width:160px">Bar code no.</th>
+      </tr></thead><tbody>`;
+    mand.forEach(d => { n++; html += editRow(d, n, mSt); });
+    html += `</tbody></table>`;
+
+    html += `<div style="font-weight:600;color:#12315c;margin:14px 0 6px">Optional documents</div>
+      <table><thead><tr>
+        <th style="width:34px">#</th><th>Document</th>
+        <th style="width:130px">Submitted</th><th style="width:160px">Bar code no.</th>
+      </tr></thead><tbody>`;
+    opt.forEach(d => { n++; html += editRow(d, n, oSt); });
+    html += `</tbody></table>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="btn-primary" onclick="saveDocuments(${id})">Save bar codes</button>
+        <span id="docSaveMsg" style="font-size:.8rem;color:#6a7280"></span>
+      </div>`;
   } else {
     html += `<table>` + Object.entries(rec.data)
       .map(([k, v]) => `<tr><td class="lab">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("") + `</table>`;
   }
   document.getElementById("dBody").innerHTML = html;
   document.getElementById("detail").showModal();
+}
+
+/** Persist the document status + bar code edits made in the detail dialog. */
+async function saveDocuments(id) {
+  const documents = {};
+  document.querySelectorAll("[data-edit-doc]").forEach(sel => {
+    const name = sel.dataset.editDoc;
+    const bcEl = document.querySelector(`[data-edit-barcode="${CSS.escape(name)}"]`);
+    const status = sel.value;
+    const barcode = bcEl ? bcEl.value.trim() : "";
+    if (status || barcode) documents[name] = { status, barcode };
+  });
+
+  const msg = document.getElementById("docSaveMsg");
+  msg.textContent = "Saving…";
+  try {
+    const res = await fetch(api(`/api/admin/submissions/${id}/documents`), {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ documents })
+    });
+    if (handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error("save failed");
+    msg.textContent = "Saved.";
+    toast("Bar codes saved.");
+  } catch (e) {
+    msg.textContent = "Could not save.";
+    toast("Could not save bar codes.", true);
+  }
 }
 
 async function removeOne(id, name) {

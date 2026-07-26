@@ -33,17 +33,49 @@ function renderForm() {
   });
 
   // documents checklist
+  const withBarcode = SCHEMA.barcode_documents || [];
+  const mandatory = SCHEMA.mandatory_documents || [];
+  const optional = SCHEMA.optional_documents || [];
+  const mStatus = SCHEMA.mandatory_status || ["Yes"];
+  const oStatus = SCHEMA.optional_status || ["Yes", "No"];
+
+  const docRow = (d, n, statuses) => {
+    const bcCell = withBarcode.includes(d)
+      ? `<input type="text" data-barcode="${esc(d)}" placeholder="Bar code no.">`
+      : `<span style="color:#9aa1ad">—</span>`;
+    const opts = statuses.map(o => `<option>${esc(o)}</option>`).join("");
+    return `<tr><td>${n}</td><td>${esc(d)}</td><td>
+      <select data-doc="${esc(d)}"><option value="">— select —</option>${opts}</select>
+      </td><td>${bcCell}</td></tr>`;
+  };
+
   html += `<section class="block"><h2><span class="num">${SCHEMA.sections.length + 1}</span>Required Documents
-             <span class="help">tick the status of each document</span></h2>
-           <div class="docwrap"><table><thead><tr>
-             <th style="width:36px">#</th><th>Document</th><th style="width:170px">Status</th>
+             <span class="help">mandatory documents must be submitted; optional documents only if applicable</span></h2>
+           <div class="docwrap">`;
+
+  // --- Mandatory group (Yes only) ---
+  html += `<div style="font-family:Georgia,serif;font-weight:600;color:#8c2020;margin:2px 0 8px">
+             Mandatory documents <span style="font-weight:400;font-size:.8rem;color:#6a7280">— all required</span>
+           </div>
+           <table><thead><tr>
+             <th style="width:36px">SR.<br>NO.</th><th>DOCUMENT NAME</th>
+             <th style="width:170px">SUBMIT FOR (BFEG)</th>
+             <th style="width:180px">BAR CODE NO.</th>
            </tr></thead><tbody>`;
-  SCHEMA.documents.forEach((d, i) => {
-    html += `<tr><td>${i + 1}</td><td>${esc(d)}</td><td>
-      <select data-doc="${esc(d)}"><option value="">— select —</option>` +
-      SCHEMA.doc_status.map(s => `<option>${esc(s)}</option>`).join("") +
-      `</select></td></tr>`;
-  });
+  let n = 0;
+  mandatory.forEach(d => { n++; html += docRow(d, n, mStatus); });
+  html += `</tbody></table>`;
+
+  // --- Optional group (Yes / No) ---
+  html += `<div style="font-family:Georgia,serif;font-weight:600;color:#12315c;margin:18px 0 8px">
+             Optional documents <span style="font-weight:400;font-size:.8rem;color:#6a7280">— if applicable</span>
+           </div>
+           <table><thead><tr>
+             <th style="width:36px">SR.<br>NO.</th><th>DOCUMENT NAME</th>
+             <th style="width:170px">SUBMIT FOR (BFEG)</th>
+             <th style="width:180px">BAR CODE NO.</th>
+           </tr></thead><tbody>`;
+  optional.forEach(d => { n++; html += docRow(d, n, oStatus); });
   html += `</tbody></table></div></section>`;
 
   document.getElementById("formArea").innerHTML = html;
@@ -70,8 +102,14 @@ function wireAutoPercent() {
 function collect() {
   const data = {}, documents = {};
   document.querySelectorAll("[data-key]").forEach(el => { data[el.dataset.key] = el.value.trim(); });
+
+  // Each document carries a status and an optional bar code number.
   document.querySelectorAll("[data-doc]").forEach(el => {
-    if (el.value) documents[el.dataset.doc] = el.value;
+    const name = el.dataset.doc;
+    const bc = document.querySelector(`[data-barcode="${CSS.escape(name)}"]`);
+    const status = el.value;
+    const barcode = bc ? bc.value.trim() : "";
+    if (status || barcode) documents[name] = { status, barcode };
   });
   return { data, documents };
 }

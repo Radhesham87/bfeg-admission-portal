@@ -25,7 +25,8 @@ from reportlab.platypus import (
     Spacer, Table, TableStyle,
 )
 
-from .fields import DOCUMENTS
+from .fields import (BARCODE_DOCUMENTS, DOCUMENTS, MANDATORY_DOCUMENTS,
+                     OPTIONAL_DOCUMENTS, doc_parts)
 
 # ---------------------------------------------------------------- palette
 NAVY = colors.HexColor("#1F3864")
@@ -105,8 +106,8 @@ def row_table(cells, widths):
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     return t
 
@@ -123,7 +124,7 @@ def section_bar(title):
     return t
 
 
-def _logo(path, h=13 * mm):
+def _logo(path, h=11 * mm):
     """Scaled logo, or blank spacing if the asset is missing."""
     if not path.exists():
         return Spacer(1, h)
@@ -150,8 +151,8 @@ def masthead():
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (0, 0), "CENTER"),
         ("ALIGN", (2, 0), (2, 0), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     return outer
 
@@ -178,8 +179,8 @@ def marks_row(label, value, widths=None):
         ("ALIGN", (1, 0), (1, 0), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     return t
 
@@ -236,7 +237,12 @@ def build_form_pdf(sub) -> bytes:
     gap = Spacer(1, 5)
 
     # ---------------- PAGE 1 ----------------
-    F += [masthead(), Spacer(1, 8)]
+    F += [masthead(), Spacer(1, 5)]
+
+    F += [section_bar("CET Cell Login"), Spacer(1, 2)]
+    F += [row_table([cell("CET CELL ID:", _v(d, "cet_cell_id")),
+                     cell("CET CELL Password:", _v(d, "cet_cell_password"))], half)]
+    F += [Spacer(1, 5)]
 
     F += [section_bar("NEET−UG Details"), Spacer(1, 2)]
     F += [row_table([cell("NEET Roll No:", _v(d, "neet_roll")),
@@ -244,7 +250,7 @@ def build_form_pdf(sub) -> bytes:
     F += [row_table([cell("Date Of Birth:", _v(d, "dob_neet")),
                      cell("NEET Rank:", _v(d, "neet_rank")),
                      cell("NEET Marks:", _v(d, "neet_marks"))], third)]
-    F += [Spacer(1, 7)]
+    F += [Spacer(1, 5)]
 
     F += [two_col_header("SUBJECT", "MARKS")]
     for lbl, key in [("Physics Percentile Score Obtained:", "phy_pct"),
@@ -253,7 +259,7 @@ def build_form_pdf(sub) -> bytes:
                      ("Total Percentile Score Obtained:", "tot_pct"),
                      ("PCB Total [out of 720]:", "pcb_total")]:
         F += [marks_row(lbl, _v(d, key))]
-    F += [Spacer(1, 7)]
+    F += [Spacer(1, 5)]
 
     F += [section_bar("Personal Information"), Spacer(1, 2)]
     F += [row_table([cell("Full name of Candidate (As per NEET Score Card):",
@@ -273,7 +279,7 @@ def build_form_pdf(sub) -> bytes:
                      cell("Religion:", _v(d, "religion"))], half)]
     F += [row_table([cell("Mother tongue:", _v(d, "mother_tongue")),
                      cell("Appar ID:", _v(d, "apaar_id"))], half)]
-    F += [Spacer(1, 7)]
+    F += [Spacer(1, 5)]
 
     F += [section_bar("Permanent Address"), Spacer(1, 2)]
     F += [row_table([cell("Address (Full Address):", _v(d, "address"))], [CONTENT_W])]
@@ -434,23 +440,33 @@ def build_form_pdf(sub) -> bytes:
     F += [_page_break()]
     F += [section_bar("Required Documents"), Spacer(1, 2)]
     dw = [14 * mm, CONTENT_W - 14 * mm - 34 * mm - 32 * mm, 34 * mm, 32 * mm]
-    rows = [[Paragraph("SR.<br/>NO.", S_TH), Paragraph("DOCUMENT NAME", S_TH),
-             Paragraph("SUBMIT FOR<br/>(BFEG)", S_TH), Paragraph("BAR CODE NO.", S_TH)]]
-    for i, name_doc in enumerate(DOCUMENTS, start=1):
-        rows.append([Paragraph(str(i), S_LAB), Paragraph(name_doc, S_LAB),
-                     Paragraph(docs.get(name_doc, "—"), S_VAL), Paragraph("", S_VAL)])
-    t = Table(rows, colWidths=dw, repeatRows=1)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), BAR),
-        ("GRID", (0, 0), (-1, -1), 0.5, LINE),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (0, -1), "CENTER"),
-        ("ALIGN", (2, 0), (2, -1), "CENTER"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    F += [t, Spacer(1, 14)]
+
+    def _doc_table(title, names, start_n):
+        head = [[Paragraph("SR.<br/>NO.", S_TH), Paragraph(title, S_TH),
+                 Paragraph("SUBMIT FOR<br/>(BFEG)", S_TH), Paragraph("BAR CODE NO.", S_TH)]]
+        n = start_n
+        for name_doc in names:
+            n += 1
+            status, barcode = doc_parts(docs.get(name_doc))
+            bc = Paragraph(barcode or "—", S_VAL) if name_doc in BARCODE_DOCUMENTS else Paragraph("", S_VAL)
+            head.append([Paragraph(str(n), S_LAB), Paragraph(name_doc, S_LAB),
+                         Paragraph(status or "—", S_VAL), bc])
+        tbl = Table(head, colWidths=dw, repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), BAR),
+            ("GRID", (0, 0), (-1, -1), 0.5, LINE),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (0, -1), "CENTER"),
+            ("ALIGN", (2, 0), (2, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        return tbl, n
+
+    mand_tbl, last = _doc_table("MANDATORY DOCUMENTS", MANDATORY_DOCUMENTS, 0)
+    opt_tbl, _ = _doc_table("OPTIONAL DOCUMENTS (if applicable)", OPTIONAL_DOCUMENTS, last)
+    F += [mand_tbl, Spacer(1, 8), opt_tbl, Spacer(1, 14)]
 
     sign = Table([[Paragraph("Student", S_FOOT),
                    Paragraph("Parent / Guardian", S_FOOT),

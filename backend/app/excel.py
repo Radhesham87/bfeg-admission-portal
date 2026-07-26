@@ -5,7 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .fields import DOCUMENTS, field_labels
+from .fields import BARCODE_DOCUMENTS, DOCUMENTS, doc_parts, field_labels
 
 HEADER_FILL = PatternFill("solid", fgColor="12315C")
 HEADER_FONT = Font(name="Calibri", bold=True, color="FFFFFF", size=10)
@@ -19,6 +19,8 @@ def _columns():
     cols = ["Reference", "Submitted on"] + list(labels.values())
     for doc in DOCUMENTS:
         cols.append(f"Doc: {doc}")
+        if doc in BARCODE_DOCUMENTS:
+            cols.append(f"Bar code: {doc}")
     return labels, cols
 
 
@@ -28,7 +30,11 @@ def _row(sub, labels):
     row = [sub.reference,
            sub.created_at.strftime("%d-%m-%Y %H:%M") if sub.created_at else ""]
     row += [data.get(key, "") for key in labels.keys()]
-    row += [docs.get(doc, "") for doc in DOCUMENTS]
+    for doc in DOCUMENTS:
+        status, barcode = doc_parts(docs.get(doc))
+        row.append(status)
+        if doc in BARCODE_DOCUMENTS:
+            row.append(barcode)
     return row
 
 

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from .database import Base, engine, get_db
 from .excel import build_workbook
@@ -46,6 +47,10 @@ class LoginIn(BaseModel):
 
 class NotesIn(BaseModel):
     notes: str = ""
+
+
+class DocumentsIn(BaseModel):
+    documents: dict = Field(default_factory=dict)
 
 
 # ---------------- public ----------------
@@ -143,6 +148,30 @@ def update_notes(sub_id: int, payload: NotesIn,
     sub.notes = payload.notes
     db.commit()
     return {"status": "saved"}
+
+
+@app.patch("/api/admin/submissions/{sub_id}/documents")
+def update_documents(sub_id: int, payload: DocumentsIn,
+                     db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    """Staff record the bar code number once a document is physically received."""
+    sub = db.get(Submission, sub_id)
+    if not sub:
+        raise HTTPException(404, "That application no longer exists.")
+
+    cleaned = {}
+    for name, value in (payload.documents or {}).items():
+        if isinstance(value, dict):
+            status = str(value.get("status") or "").strip()
+            barcode = str(value.get("barcode") or "").strip()
+        else:
+            status, barcode = str(value or "").strip(), ""
+        if status or barcode:
+            cleaned[name] = {"status": status, "barcode": barcode}
+
+    sub.documents = cleaned
+    flag_modified(sub, "documents")      # JSON columns need an explicit nudge
+    db.commit()
+    return {"status": "saved", "documents": cleaned}
 
 
 @app.delete("/api/admin/submissions/{sub_id}")

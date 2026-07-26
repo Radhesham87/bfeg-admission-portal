@@ -13,15 +13,24 @@ COLLECT_CET_PASSWORD = os.getenv("COLLECT_CET_PASSWORD", "false").lower() == "tr
 
 YN = ["Yes", "No"]
 
+# Candidates for NEET-UG are born in this window; the date pickers are limited
+# to it so a stray year cannot be typed in.
+DOB_MIN = "2004-01-01"
+DOB_MAX = "2010-12-31"
+
 SECTIONS = [
     {
         "id": "neet",
         "title": "NEET-UG Details",
         "help": "Copy these exactly from your NEET score card.",
         "fields": [
+            {"k": "cet_cell_id", "l": "CET CELL ID (Gmail)", "t": "email",
+             "hint": "gmail address used to create the CET account", "req": True},
+            {"k": "cet_cell_password", "l": "CET CELL Password", "hint": "kept confidential", "req": True},
             {"k": "neet_roll", "l": "NEET Roll No", "req": True},
             {"k": "neet_appno", "l": "NEET Application No.", "req": True},
-            {"k": "dob_neet", "l": "Date of Birth (as per NEET)", "t": "date", "req": True},
+            {"k": "dob_neet", "l": "Date of Birth (as per NEET)", "t": "date", "req": True,
+             "min": DOB_MIN, "max": DOB_MAX},
             {"k": "neet_rank", "l": "NEET Rank (All India Rank)", "req": True},
             {"k": "neet_marks", "l": "NEET Marks", "req": True},
             {"k": "pcb_total", "l": "PCB Total (out of 720)"},
@@ -41,7 +50,8 @@ SECTIONS = [
             {"k": "father_name", "l": "Father's first name", "req": True},
             {"k": "mother_name", "l": "Mother's first name", "req": True},
             {"k": "gender", "l": "Gender", "t": "sel", "o": ["Male", "Female", "Other"], "req": True},
-            {"k": "dob", "l": "Date of Birth", "t": "date", "req": True},
+            {"k": "dob", "l": "Date of Birth", "t": "date", "req": True,
+             "min": DOB_MIN, "max": DOB_MAX},
             {"k": "cet_mobile", "l": "CET registration mobile number", "req": True},
             {"k": "alt_contact", "l": "Alternate contact number"},
             {"k": "cet_email", "l": "CET registered Email ID", "t": "email", "req": True},
@@ -177,35 +187,68 @@ SECTIONS = [
             {"k": "group_a", "l": "Group A — MBBS / BDS", "t": "sel", "o": YN},
             {"k": "group_b", "l": "Group B — BAMS / BHMS", "t": "sel", "o": YN},
             {"k": "group_c", "l": "Group C — BPT", "t": "sel", "o": YN},
-            {"k": "quota", "l": "Applying for", "t": "sel", "o": ["State quota", "IQ quota", "Both"], "req": True},
+            {"k": "quota", "l": "Applying for", "t": "sel", "o": ["State quota"], "req": True},
             {"k": "app_fees", "l": "Application fees paid"},
             {"k": "fee_date", "l": "Fee payment date", "t": "date"},
         ],
     },
 ]
 
-DOCUMENTS = [
-    "Admit card / hall ticket of NEET-UG",
-    "NEET-UG marksheet",
-    "H.S.C. (or equivalent) marksheet",
-    "S.S.C. passing certificate (for date of birth)",
-    "School leaving certificate — H.S.C.",
-    "Nationality certificate / passport / domicile",
-    "Domicile certificate (Maharashtra only)",
+# Documents fall into two groups. Mandatory documents every candidate must
+# submit, so the only choice offered is "Yes". Optional documents apply only to
+# some candidates, so they take "Yes" or "No".
+MANDATORY_DOCUMENTS = [
+    "Admit card",
+    "NEET marksheet",
+    "NEET confirmation page",
+    "12th Marksheet",
+    "10th Passing Certificate",
+    "Nationality + Domicile",
+    "Medical fitness certificate",
+    "School leaving certificate",
+]
+OPTIONAL_DOCUMENTS = [
     "Caste certificate",
     "Caste validity certificate",
     "Non-creamy layer certificate",
-    "Medical fitness certificate (Annexure-H)",
-    "Minority certificate with affidavit (Annexure-G)",
-    "Defence quota certificate D1 / D2 / D3 (Annexure-F)",
+    "Minority certificate",
+    "Defence quota certificate (D1 / D2 / D3)",
     "Hilly area certificate",
 ]
-DOC_STATUS = ["Have it", "Applying for it", "Not applicable"]
+DOCUMENTS = MANDATORY_DOCUMENTS + OPTIONAL_DOCUMENTS
+
+MANDATORY_STATUS = ["Yes"]
+OPTIONAL_STATUS = ["Yes", "No"]
+
+# kept for backward compatibility with any old stored records / callers
+DOC_STATUS = ["Yes", "No"]
+
+# Only these certificates are issued with a bar code number, so only these
+# rows show a bar code box on the form, in the admin panel and in the PDF.
+BARCODE_DOCUMENTS = [
+    "Nationality + Domicile",
+    "Caste certificate",
+    "Caste validity certificate",
+    "Non-creamy layer certificate",
+]
 
 if COLLECT_CET_PASSWORD:
     for _s in SECTIONS:
         if _s["id"] == "personal":
             _s["fields"].append({"k": "cet_password", "l": "CET registration password"})
+
+
+def doc_parts(value):
+    """Return (status, barcode) for one stored document entry.
+
+    Rows saved before the bar code field existed hold a plain status string,
+    so both shapes are accepted.
+    """
+    if isinstance(value, dict):
+        return (value.get("status") or "").strip(), (value.get("barcode") or "").strip()
+    if isinstance(value, str):
+        return value.strip(), ""
+    return "", ""
 
 
 def all_fields():
@@ -225,4 +268,9 @@ def schema_payload():
         "sections": SECTIONS,
         "documents": DOCUMENTS,
         "doc_status": DOC_STATUS,
+        "mandatory_documents": MANDATORY_DOCUMENTS,
+        "optional_documents": OPTIONAL_DOCUMENTS,
+        "mandatory_status": MANDATORY_STATUS,
+        "optional_status": OPTIONAL_STATUS,
+        "barcode_documents": BARCODE_DOCUMENTS,
     }
