@@ -79,7 +79,7 @@ async function loadList(page) {
   PAGE = page;
   const q = document.getElementById("q").value.trim();
   const tbody = document.querySelector("#recs tbody");
-  tbody.innerHTML = `<tr><td colspan="11" class="empty">Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="12" class="empty">Loading…</td></tr>`;
 
   try {
     const url = api(`/api/admin/submissions?page=${PAGE}&per_page=${PER}&q=${encodeURIComponent(q)}`);
@@ -95,7 +95,7 @@ async function loadList(page) {
     document.getElementById("next").disabled = PAGE >= pages;
 
     if (!out.items.length) {
-      tbody.innerHTML = `<tr><td colspan="11" class="empty">No applications found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty">No applications found.</td></tr>`;
       return;
     }
     tbody.innerHTML = out.items.map(r => `
@@ -110,6 +110,7 @@ async function loadList(page) {
         <td>${r.created_at ? new Date(r.created_at).toLocaleString("en-IN") : ""}</td>
         <td><span class="link" onclick="downloadPdf(${r.id})">PDF</span></td>
         <td><span class="link" onclick="downloadOne(${r.id})">Excel</span></td>
+        <td><span class="link" onclick="openEdit(${r.id})">Edit</span></td>
         <td><span class="del" onclick="removeOne(${r.id},'${esc(r.full_name)}')">Delete</span></td>
       </tr>`).join("");
   } catch (e) {
@@ -127,6 +128,7 @@ async function openDetail(id) {
   document.getElementById("dTitle").textContent = `${rec.full_name} — ${rec.reference}`;
   document.getElementById("dExcel").onclick = () => downloadOne(id);
   document.getElementById("dPdf").onclick = () => downloadPdf(id);
+  document.getElementById("dEdit").onclick = () => { document.getElementById("detail").close(); openEdit(id); };
 
   let html = "";
   if (SCHEMA) {
@@ -216,6 +218,71 @@ async function saveDocuments(id) {
   } catch (e) {
     msg.textContent = "Could not save.";
     toast("Could not save bar codes.", true);
+  }
+}
+
+/* ---------------- edit ---------------- */
+let EDIT_ID = null;
+
+/** Open the edit form for one application, pre-filled with its saved data. */
+async function openEdit(id) {
+  if (!SCHEMA) await loadSchema();
+  const res = await fetch(api(`/api/admin/submissions/${id}`), { headers: headers() });
+  if (handleAuthFailure(res)) return;
+  if (!res.ok) { toast("Could not open that application for editing.", true); return; }
+  const rec = await res.json();
+  EDIT_ID = id;
+
+  document.getElementById("eTitle").textContent = `Edit — ${rec.full_name} (${rec.reference})`;
+
+  let html = "";
+  if (SCHEMA) {
+    SCHEMA.sections.forEach(sec => {
+      html += `<h4>${esc(sec.title)}</h4><div class="grid">`;
+      sec.fields.forEach(f => { html += fieldHtml(f); });
+      html += `</div>`;
+    });
+  }
+  document.getElementById("eBody").innerHTML = html;
+
+  // Fill in the saved values now that the inputs exist in the DOM.
+  if (SCHEMA) {
+    SCHEMA.sections.forEach(sec => sec.fields.forEach(f => {
+      const el = document.getElementById(f.k);
+      if (el) el.value = rec.data[f.k] || "";
+    }));
+  }
+
+  document.getElementById("editDialog").showModal();
+}
+
+/** Save the edited fields back to the server (PATCH). */
+async function saveEdit() {
+  if (!EDIT_ID) return;
+  const btn = document.getElementById("eSaveBtn");
+  const data = {};
+  document.querySelectorAll("#eBody [data-key]").forEach(el => { data[el.dataset.key] = el.value.trim(); });
+
+  if (!data.full_name) { toast('Fill in "Full name of candidate" before saving.', true); return; }
+  if (!data.cet_mobile) { toast('Fill in "CET registration mobile number" before saving.', true); return; }
+
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const res = await fetch(api(`/api/admin/submissions/${EDIT_ID}`), {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ data })
+    });
+    if (handleAuthFailure(res)) return;
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.detail || "Save failed");
+    toast("Application updated.");
+    document.getElementById("editDialog").close();
+    loadList(PAGE);
+  } catch (e) {
+    toast(e.message || "Could not save changes.", true);
+  } finally {
+    btn.disabled = false; btn.textContent = "Save changes";
   }
 }
 

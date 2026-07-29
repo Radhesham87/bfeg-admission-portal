@@ -54,9 +54,9 @@
     <table class="recs" id="recs">
       <thead><tr>
         <th>Reference</th><th>Name</th><th>NEET Roll</th><th>Mobile</th>
-        <th>District</th><th>Category</th><th>Quota</th><th>Submitted</th><th></th><th></th><th></th>
+        <th>District</th><th>Category</th><th>Quota</th><th>Submitted</th><th></th><th></th><th></th><th></th>
       </tr></thead>
-      <tbody><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+      <tbody><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -77,7 +77,21 @@
   <div class="dfoot">
     <button class="btn-primary" id="dPdf">Download filled form (PDF)</button>
     <button class="btn-accent" id="dExcel">Download Excel</button>
+    <button class="btn-ghost" id="dEdit">Edit</button>
     <button class="btn-ghost" onclick="document.getElementById('detail').close()">Close</button>
+  </div>
+</dialog>
+
+<!-- ---------- EDIT DIALOG ---------- -->
+<dialog id="editDialog">
+  <div class="dhead">
+    <h3 id="eTitle">Edit Application</h3>
+    <span class="spacer" style="margin-left:auto"></span>
+  </div>
+  <div class="dbody" id="eBody"></div>
+  <div class="dfoot">
+    <button class="btn-primary" id="eSaveBtn" onclick="saveEdit()">Save changes</button>
+    <button class="btn-ghost" onclick="document.getElementById('editDialog').close()">Cancel</button>
   </div>
 </dialog>
 

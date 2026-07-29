@@ -139,6 +139,35 @@ def get_submission(sub_id: int, db: Session = Depends(get_db), _: str = Depends(
     return sub.detail()
 
 
+@app.patch("/api/admin/submissions/{sub_id}")
+def update_submission(sub_id: int, payload: SubmissionIn,
+                      db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    """Staff edit of the candidate's own application data (the 'Edit' action)."""
+    sub = db.get(Submission, sub_id)
+    if not sub:
+        raise HTTPException(404, "That application no longer exists.")
+
+    data = {k: ("" if v is None else str(v)).strip() for k, v in (payload.data or {}).items()}
+
+    if not data.get("full_name"):
+        raise HTTPException(400, "Enter the candidate's full name.")
+    if not data.get("cet_mobile"):
+        raise HTTPException(400, "Enter a mobile number so BFEG can contact you.")
+
+    sub.full_name = data.get("full_name", "")[:200]
+    sub.neet_roll = data.get("neet_roll", "")[:60]
+    sub.cet_mobile = data.get("cet_mobile", "")[:30]
+    sub.cet_email = data.get("cet_email", "")[:160]
+    sub.district = data.get("district", "")[:90]
+    sub.category = data.get("category", "")[:60]
+    sub.quota = data.get("quota", "")[:40]
+    sub.data = data
+    flag_modified(sub, "data")
+    db.commit()
+    db.refresh(sub)
+    return sub.detail()
+
+
 @app.patch("/api/admin/submissions/{sub_id}/notes")
 def update_notes(sub_id: int, payload: NotesIn,
                  db: Session = Depends(get_db), _: str = Depends(require_admin)):
