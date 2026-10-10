@@ -48,6 +48,12 @@ class ResendIn(BaseModel):
     launch_token_hash: str = ""
 
 
+class RevisionIn(BaseModel):
+    data: dict = Field(default_factory=dict)
+    expected_version: int
+    revision_key: str = Field(min_length=8, max_length=80)
+
+
 class LoginIn(BaseModel):
     username: str
     password: str
@@ -197,6 +203,8 @@ def update_submission(sub_id: int, payload: SubmissionIn,
     sub.quota = data.get("quota", "")[:40]
     sub.data = data
     flag_modified(sub, "data")
+    sub.version = (sub.version or 1) + 1
+    sub.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(sub)
     return sub.detail()
@@ -245,6 +253,78 @@ def delete_submission(sub_id: int, db: Session = Depends(get_db), _: str = Depen
     db.delete(sub)
     db.commit()
     return {"status": "deleted"}
+
+
+# ---------------- Pravesh Setu admin edits (server-to-server) ----------------
+def _linked_submission(db: Session, reference: str) -> Submission:
+    sub = db.query(Submission).filter(Submission.reference == reference.strip().upper()).first()
+    # Pravesh Setu may only touch applications that were opened from its app.
+    if not sub or not sub.ps_launch_hash:
+        raise HTTPException(404, "No linked application with that reference.")
+    return sub
+
+
+def _form_state(sub: Submission) -> dict:
+    return {
+        "reference": sub.reference,
+        "version": sub.version or 1,
+        "data": sub.data or {},
+        "created_at": sub.created_at.isoformat() if sub.created_at else None,
+        "updated_at": sub.updated_at.isoformat() if sub.updated_at else None,
+    }
+
+
+@app.get("/api/integrations/pravesh-setu/submissions/{reference}")
+def ps_get_form(reference: str, db: Session = Depends(get_db), _: dict = Depends(pravesh_setu.require_pravesh_setu)):
+    """The saved application and the live form schema, for the Pravesh Setu admin editor."""
+    return {**_form_state(_linked_submission(db, reference)), "schema": schema_payload()}
+
+
+@app.put("/api/integrations/pravesh-setu/submissions/{reference}")
+def ps_update_form(reference: str, payload: RevisionIn, db: Session = Depends(get_db),
+                   _: dict = Depends(pravesh_setu.require_pravesh_setu)):
+    """Apply an admin revision from Pravesh Setu and return the regenerated official PDF.
+
+    409 if the application changed since the editor loaded it. Repeating the same
+    revision_key (double click, retry) returns the result without applying it twice.
+    """
+    sub = _linked_submission(db, reference)
+    if sub.ps_revision_key == payload.revision_key:
+        pdf_b64, pdf_error = pravesh_setu.pdf_payload(sub)
+        return {**_form_state(sub), "applied": False, "pdf": {"base64": pdf_b64} if pdf_b64 else None, "pdf_error": pdf_error}
+    if (sub.version or 1) != payload.expected_version:
+        raise HTTPException(409, {"message": "This application was changed after the editor was opened.",
+                                  "current_version": sub.version or 1})
+    clean, errors = pravesh_setu.validate_revision(payload.data or {}, schema_payload())
+    if errors:
+        raise HTTPException(422, {"message": "Some fields need attention.", "errors": errors})
+    data = {**(sub.data or {}), **clean}  # keep keys the schema no longer shows
+    if not data.get("full_name"):
+        raise HTTPException(422, {"message": "Enter the candidate's full name.", "errors": {"full_name": "Required."}})
+    sub.full_name = data.get("full_name", "")[:200]
+    sub.neet_roll = data.get("neet_roll", "")[:60]
+    sub.cet_mobile = data.get("cet_mobile", "")[:30]
+    sub.cet_email = data.get("cet_email", "")[:160]
+    sub.district = data.get("district", "")[:90]
+    sub.category = data.get("category", "")[:60]
+    sub.quota = data.get("quota", "")[:40]
+    sub.data = data
+    flag_modified(sub, "data")
+    sub.version = (sub.version or 1) + 1
+    sub.ps_revision_key = payload.revision_key
+    sub.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(sub)
+    pdf_b64, pdf_error = pravesh_setu.pdf_payload(sub)
+    return {**_form_state(sub), "applied": True, "pdf": {"base64": pdf_b64} if pdf_b64 else None, "pdf_error": pdf_error}
+
+
+@app.post("/api/integrations/pravesh-setu/submissions/{reference}/pdf")
+def ps_regenerate_pdf(reference: str, db: Session = Depends(get_db), _: dict = Depends(pravesh_setu.require_pravesh_setu)):
+    """Regenerate the official PDF from the application's current data (retry after a failure)."""
+    sub = _linked_submission(db, reference)
+    pdf_b64, pdf_error = pravesh_setu.pdf_payload(sub)
+    return {"reference": sub.reference, "version": sub.version or 1, "pdf": {"base64": pdf_b64} if pdf_b64 else None, "pdf_error": pdf_error}
 
 
 def _xlsx_response(rows, filename):

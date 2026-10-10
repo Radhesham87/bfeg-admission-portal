@@ -29,6 +29,13 @@ class Submission(Base):
     ps_sync_error = Column(Text, default="")
     ps_last_attempt_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Optimistic concurrency for edits (staff panel or Pravesh Setu admins):
+    # every saved change increments `version`; Pravesh Setu revisions carry an
+    # idempotency key so a repeated "Save & Submit" is applied once.
+    version = Column(Integer, nullable=False, default=1)
+    ps_revision_key = Column(String(80), default="")
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True),
                         default=lambda: datetime.now(timezone.utc), index=True)
 

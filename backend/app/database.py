@@ -35,6 +35,9 @@ def ensure_columns():
         "ps_sync_status": "VARCHAR(20) DEFAULT ''",
         "ps_sync_error": "TEXT DEFAULT ''",
         "ps_last_attempt_at": "TIMESTAMP WITH TIME ZONE" if not DATABASE_URL.startswith("sqlite") else "TIMESTAMP",
+        "version": "INTEGER NOT NULL DEFAULT 1",
+        "ps_revision_key": "VARCHAR(80) DEFAULT ''",
+        "updated_at": "TIMESTAMP WITH TIME ZONE" if not DATABASE_URL.startswith("sqlite") else "TIMESTAMP",
     }
     existing = {c["name"] for c in inspect(engine).get_columns("submissions")}
     with engine.begin() as conn:

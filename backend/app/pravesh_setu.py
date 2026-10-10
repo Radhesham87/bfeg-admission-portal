@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi import Header, HTTPException
 
 log = logging.getLogger("pravesh_setu")
 
@@ -147,3 +148,69 @@ def may_resend(sub) -> bool:
     if last.tzinfo is None:
         last = last.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc) - last >= RESEND_COOLDOWN
+
+
+# ---------------------------------------------------------------------------
+# Admin edits from Pravesh Setu (NEET Form Management -> Edit Form)
+#
+# Pravesh Setu's backend calls us with a Google-signed ID token minted from its
+# service account. We accept it only when Google's signature is valid, the
+# audience is this API and the email is exactly PS_SERVICE_ACCOUNT. Pravesh
+# Setu can read and edit only applications that were opened from its app.
+#
+#   PS_SERVICE_ACCOUNT      e.g. name@project.iam.gserviceaccount.com (unset = disabled)
+#   PS_ID_TOKEN_AUDIENCE    audience Pravesh Setu uses (this API's URL)
+# ---------------------------------------------------------------------------
+PS_SERVICE_ACCOUNT = os.getenv("PS_SERVICE_ACCOUNT", "").strip()
+PS_ID_TOKEN_AUDIENCE = os.getenv("PS_ID_TOKEN_AUDIENCE", "https://bfeg-api-539557750261.asia-south1.run.app").strip()
+MAX_FIELD_LENGTH = 500
+
+
+def require_pravesh_setu(authorization: str | None = Header(default=None)) -> dict:
+    """FastAPI dependency: the caller must be Pravesh Setu's service account."""
+    if not PS_SERVICE_ACCOUNT:
+        raise HTTPException(503, "Pravesh Setu editing is not configured.")
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Missing credentials.")
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+    try:
+        claims = id_token.verify_oauth2_token(authorization[7:].strip(), google_requests.Request(), audience=PS_ID_TOKEN_AUDIENCE)
+    except Exception:
+        raise HTTPException(401, "Invalid credentials.")
+    if claims.get("email") != PS_SERVICE_ACCOUNT or not claims.get("email_verified"):
+        raise HTTPException(403, "Not allowed.")
+    return claims
+
+
+def form_fields(schema: dict) -> dict:
+    """key -> field definition for every editable field in the form schema."""
+    return {f["k"]: f for section in schema.get("sections", []) for f in section.get("fields", [])}
+
+
+def validate_revision(data: dict, schema: dict) -> tuple[dict, dict]:
+    """Clean submitted values against the real schema. Returns (clean, errors)."""
+    fields = form_fields(schema)
+    clean, errors = {}, {}
+    for key, field in fields.items():
+        raw = data.get(key, "")
+        value = "" if raw is None else str(raw).strip()
+        if len(value) > MAX_FIELD_LENGTH:
+            errors[key] = f"Keep this under {MAX_FIELD_LENGTH} characters."
+            continue
+        if field.get("req") and not value:
+            errors[key] = "This field is required."
+        elif value and field.get("t") == "sel" and value not in field.get("o", []):
+            errors[key] = "Choose one of the listed options."
+        clean[key] = value
+    return clean, errors
+
+
+def pdf_payload(sub):
+    """The official form PDF for the submission's current data (base64), or an error."""
+    try:
+        from .pdf_form import build_form_pdf
+        return base64.b64encode(build_form_pdf(sub)).decode(), None
+    except Exception as exc:
+        log.exception("Form PDF generation failed for %s", sub.reference)
+        return None, f"Form PDF generation failed: {type(exc).__name__}"
