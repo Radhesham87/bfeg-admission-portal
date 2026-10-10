@@ -13,13 +13,15 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from .database import Base, engine, get_db
+from . import pravesh_setu
+from .database import Base, engine, ensure_columns, get_db
 from .excel import build_workbook
 from .fields import schema_payload
 from .models import Submission
 from .security import create_token, require_admin, verify_admin
 
 Base.metadata.create_all(bind=engine)
+ensure_columns()
 
 app = FastAPI(title="BFEG Admission Portal API", version="1.0.0")
 
@@ -38,6 +40,12 @@ app.add_middleware(
 class SubmissionIn(BaseModel):
     data: dict = Field(default_factory=dict)
     documents: dict = Field(default_factory=dict)
+    # Single-use token from the Pravesh Setu app (only its hash is stored).
+    launch_token: str | None = None
+
+
+class ResendIn(BaseModel):
+    launch_token_hash: str = ""
 
 
 class LoginIn(BaseModel):
@@ -87,14 +95,40 @@ def create_submission(payload: SubmissionIn, db: Session = Depends(get_db)):
         quota=data.get("quota", "")[:40],
         data=data,
         documents=payload.documents or {},
+        ps_launch_hash=pravesh_setu.hash_launch_token(payload.launch_token or ""),
     )
     db.add(sub)
     db.commit()
     db.refresh(sub)
 
+    out = {"reference": sub.reference,
+           "message": "Application received. Keep this reference number safe."}
+    if sub.ps_launch_hash:
+        # Opened from the Pravesh Setu app: send the signed event (with the form PDF).
+        out["pravesh_setu"] = pravesh_setu.push_submission(sub, db)
     # Students get a receipt only — never the data file.
-    return {"reference": sub.reference,
-            "message": "Application received. Keep this reference number safe."}
+    return out
+
+
+@app.post("/api/integrations/pravesh-setu/resend")
+def resend_to_pravesh_setu(payload: ResendIn, db: Session = Depends(get_db)):
+    """Pravesh Setu asks us to re-send a launch's signed event (lost event or failed PDF).
+
+    Nothing in this request is trusted: the event always goes to the fixed
+    Pravesh Setu URL, signed by us, and carries only data already linked to
+    that launch. The 256-bit hash is unguessable, and resends are rate-limited.
+    """
+    launch_hash = (payload.launch_token_hash or "").strip().lower()
+    if len(launch_hash) != 64 or any(c not in "0123456789abcdef" for c in launch_hash):
+        raise HTTPException(400, "Invalid launch.")
+    sub = (db.query(Submission).filter(Submission.ps_launch_hash == launch_hash)
+             .order_by(Submission.created_at.asc()).first())
+    if not sub:
+        raise HTTPException(404, "No application for this launch yet.")
+    if not pravesh_setu.may_resend(sub):
+        return {"status": "throttled"}
+    result = pravesh_setu.push_submission(sub, db, event_type="submission.resent", attempts=1)
+    return {"status": "sent", "linked": result["linked"]}
 
 
 # ---------------- admin ----------------

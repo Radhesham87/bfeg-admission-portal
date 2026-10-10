@@ -22,6 +22,13 @@ class Submission(Base):
     documents = Column(JSON, nullable=False, default=dict)
     notes = Column(Text, default="")
 
+    # Pravesh Setu link: SHA-256 of the single-use launch token from the app
+    # (the token itself is never stored) and the outcome of the signed event.
+    ps_launch_hash = Column(String(64), index=True, default="")
+    ps_sync_status = Column(String(20), default="")
+    ps_sync_error = Column(Text, default="")
+    ps_last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True),
                         default=lambda: datetime.now(timezone.utc), index=True)
 
@@ -36,6 +43,7 @@ class Submission(Base):
             "district": self.district,
             "category": self.category,
             "quota": self.quota,
+            "pravesh_setu": self.ps_sync_status or "",
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

@@ -6,6 +6,32 @@
 
 let SCHEMA = null;
 
+/* ---- Pravesh Setu app launch -------------------------------------------
+   The Pravesh Setu app opens this page as  …/#ps_launch=<single-use token>.
+   The token is kept only for this tab, removed from the address bar, and sent
+   with the submission; the server forwards it (hashed) to Pravesh Setu. */
+const PS_RETURN_URL = "mobile://neet-form-return";
+const PS_LAUNCH = (() => {
+  try {
+    const m = /(?:^#|&)ps_launch=([A-Za-z0-9_-]{43})(?:&|$)/.exec(window.location.hash || "");
+    if (m) {
+      sessionStorage.setItem("ps_launch", m[1]);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    return sessionStorage.getItem("ps_launch") || "";
+  } catch (e) { return ""; }
+})();
+
+function psBanner() {
+  if (!PS_LAUNCH) return;
+  const note = document.createElement("div");
+  note.className = "note ps-note";
+  note.textContent = "Opened from the Pravesh Setu app. After you submit, a PDF of your form " +
+    "will appear in Pravesh Setu → Documents → My Documents.";
+  const page = document.getElementById("page");
+  page.insertBefore(note, page.firstChild);
+}
+
 async function loadSchema() {
   try {
     const res = await fetch(api("/api/schema"));
@@ -151,11 +177,11 @@ async function submitForm() {
     const res = await fetch(api("/api/submissions"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data, documents })
+      body: JSON.stringify(PS_LAUNCH ? { data, documents, launch_token: PS_LAUNCH } : { data, documents })
     });
     const out = await res.json();
     if (!res.ok) throw new Error(out.detail || "Submission failed");
-    showSuccess(out.reference, data.full_name);
+    showSuccess(out.reference, data.full_name, out.pravesh_setu);
   } catch (err) {
     toast(err.message || "Could not submit. Try again.", true);
     btn.disabled = false;
@@ -163,7 +189,21 @@ async function submitForm() {
   }
 }
 
-function showSuccess(reference, name) {
+function showSuccess(reference, name, ps) {
+  // A launch token is single-use: forget it once the application is saved.
+  try { sessionStorage.removeItem("ps_launch"); } catch (e) { /* ignore */ }
+  let appBlock = "";
+  if (PS_LAUNCH) {
+    const linked = ps && ps.linked;
+    appBlock = `
+      <p style="font-size:.9rem;color:${linked ? "#1f6f3f" : "#8a5a00"}">
+        ${linked
+          ? "Linked to your Pravesh Setu account. Your form PDF is in Documents → My Documents."
+          : "Saved. Pravesh Setu will finish linking your form shortly — open the app and check NEET Form status."}
+      </p>
+      <a class="btn-primary" style="display:inline-block;text-decoration:none;margin-bottom:10px"
+         href="${PS_RETURN_URL}?ref=${encodeURIComponent(reference)}">Return to Pravesh Setu</a><br>`;
+  }
   document.getElementById("page").innerHTML = `
     <div class="ok-box">
       <h2>Application received</h2>
@@ -173,9 +213,11 @@ function showSuccess(reference, name) {
         Save this reference number. Quote it whenever you contact BFEG about your admission.<br>
         Keep your original documents ready for verification.
       </p>
-      <button class="btn-ghost" onclick="location.reload()">Submit another application</button>
+      ${appBlock}
+      ${PS_LAUNCH ? "" : `<button class="btn-ghost" onclick="location.reload()">Submit another application</button>`}
     </div>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+psBanner();
 loadSchema();
